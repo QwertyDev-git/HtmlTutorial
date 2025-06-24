@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Firebase Auth - Login & Sign Up</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f1f1f1;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h2 {
+      color: #333;
+    }
+
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #ccc;
+      width: 300px;
+      margin-bottom: 20px;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 6px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #0056b3;
+    }
+
+    #account-info {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e6ffe6;
+      border: 1px solid #b3ffb3;
+      border-radius: 6px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>Sign Up</h2>
+  <div class="container">
+    <input type="email" id="signup-email" placeholder="Email">
+    <input type="password" id="signup-password" placeholder="Password">
+    <button onclick="signUp()">Sign Up</button>
+  </div>
+
+  <h2>Login</h2>
+  <div class="container">
+    <input type="email" id="login-email" placeholder="Email">
+    <input type="password" id="login-password" placeholder="Password">
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div id="account-info">
+    <p><strong>Login sebagai:</strong> <span id="user-email"></span></p>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <p id="status"></p>
+
+  <script>
+    // Firebase Config
+    //Di Firebase: Project Settings > Your apps > pilih ikon gambar </> > (Masukkan nama) > Register > salin firebaseConfig dan tempel
+    //Firebase: Build > Authentication > SignIn Method > Email/Password
+    const firebaseConfig = {
+      apiKey: "AIzaSyAqPfdaY1Go3PbEgkV2szF1E1EXXEKeJ18",
+      authDomain: "tutorial-ba748.firebaseapp.com",
+      projectId: "tutorial-ba748",
+      storageBucket: "tutorial-ba748.firebasestorage.app",
+      messagingSenderId: "723754269779",
+      appId: "1:723754269779:web:5474b2c193abdf94745aa6"
+    };
+    // Inisialisasi Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    // Sign Up
+    function signUp() {
+      const email = document.getElementById("signup-email").value;
+      const password = document.getElementById("signup-password").value;
+
+      auth.createUserWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+          showAccountInfo(userCredential.user);
+          document.getElementById("status").textContent = "Sign up berhasil!";
+        })
+        .catch((error) => {
+          document.getElementById("status").textContent = "Error: " + error.message;
+        });
+    }
+
+    // Login
+    function login() {
+      const email = document.getElementById("login-email").value;
+      const password = document.getElementById("login-password").value;
+
+      auth.signInWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+          showAccountInfo(userCredential.user);
+          document.getElementById("status").textContent = "Login berhasil!";
+        })
+        .catch((error) => {
+          document.getElementById("status").textContent = "Error: " + error.message;
+        });
+    }
+
+    // Logout
+    function logout() {
+      auth.signOut()
+        .then(() => {
+          document.getElementById("status").textContent = "Anda telah logout.";
+          document.getElementById("account-info").style.display = "none";
+        });
+    }
+
+    // Menampilkan info akun
+    function showAccountInfo(user) {
+      document.getElementById("user-email").textContent = user.email;
+      document.getElementById("account-info").style.display = "block";
+    }
+
+    // Cek status login saat reload
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        showAccountInfo(user);
+      } else {
+        document.getElementById("account-info").style.display = "none";
+      }
+    });
+  </script>
+</body>
+</html>
