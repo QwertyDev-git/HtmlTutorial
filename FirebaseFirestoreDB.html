@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload & Edit Data Firestore</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .form-group { margin-bottom: 10px; }
+    .card { 
+      border: 1px solid #ccc; 
+      border-radius: 8px; 
+      padding: 10px; 
+      margin: 10px 0; 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between;
+    }
+    .color-box {
+      width: 40px;
+      height: 40px;
+      border-radius: 4px;
+      margin-left: 10px;
+    }
+    button {
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Upload/Edit Data</h2>
+  <div>
+    <div class="form-group">
+      <label>Nama:</label><br/>
+      <input type="text" id="nama" required>
+    </div>
+    <div class="form-group">
+      <label>Nomor (ID):</label><br/>
+      <input type="text" id="nomor" required>
+      <button onclick="generateRandomId()">Generate</button>
+    </div>
+    <!-- Tanggal dihilangkan dari input karena otomatis pakai Date.now() -->
+    <div class="form-group">
+      <label>Warna:</label><br/>
+      <input type="color" id="warna" value="#ff0000">
+    </div>
+    <button onclick="uploadData()" id="submitBtn">Upload</button>
+    <button onclick="cancelEdit()" id="cancelBtn" style="display:none;">Batal Edit</button>
+  </div>
+
+  <hr/>
+
+  <h2>Data Tersimpan</h2>
+  <div id="data-list"></div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAqPfdaY1Go3PbEgkV2szF1E1EXXEKeJ18",
+      authDomain: "tutorial-ba748.firebaseapp.com",
+      projectId: "tutorial-ba748",
+      storageBucket: "tutorial-ba748.firebasestorage.app",
+      messagingSenderId: "723754269779",
+      appId: "1:723754269779:web:5474b2c193abdf94745aa6"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let editId = null;
+
+    function generateRandomId() {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let result = '';
+      for (let i = 0; i < 12; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      document.getElementById('nomor').value = result;
+    }
+
+    function uploadData() {
+      const nama = document.getElementById('nama').value;
+      const nomor = document.getElementById('nomor').value;
+      const warna = document.getElementById('warna').value;
+      const tanggal = new Date().toISOString().split("T")[0]; // Format yyyy-mm-dd
+
+      if (!nama || !nomor) {
+        alert("Nama dan Nomor harus diisi!");
+        return;
+      }
+
+      const data = { nama, nomor, tanggal, warna };
+
+      if (editId) {
+        db.collection("data").doc(editId).update(data)
+          .then(() => {
+            alert("Data berhasil diperbarui!");
+            resetForm();
+            loadData();
+          });
+      } else {
+        db.collection("data").add(data)
+          .then(() => {
+            alert("Data berhasil ditambahkan!");
+            resetForm();
+            loadData();
+          });
+      }
+    }
+
+    function loadData() {
+      const container = document.getElementById('data-list');
+      container.innerHTML = '';
+
+      db.collection("data").orderBy("tanggal", "desc").get()
+        .then((querySnapshot) => {
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+              <div>
+                <strong>${data.nama}</strong><br/>
+                Nomor: ${data.nomor}<br/>
+                Tanggal: ${data.tanggal}
+              </div>
+              <div style="display:flex; align-items:center;">
+                <div class="color-box" style="background:${data.warna}"></div>
+                <div>
+                  <button onclick="editData('${doc.id}', '${data.nama}', '${data.nomor}', '${data.warna}')">Edit</button>
+                  <button onclick="deleteData('${doc.id}')">Hapus</button>
+                </div>
+              </div>
+            `;
+            container.appendChild(card);
+          });
+        });
+    }
+
+    function editData(id, nama, nomor, warna) {
+      document.getElementById('nama').value = nama;
+      document.getElementById('nomor').value = nomor;
+      document.getElementById('warna').value = warna;
+
+      editId = id;
+      document.getElementById('submitBtn').innerText = 'Update';
+      document.getElementById('cancelBtn').style.display = 'inline-block';
+    }
+
+    function deleteData(id) {
+      if (confirm("Yakin ingin menghapus data ini?")) {
+        db.collection("data").doc(id).delete()
+          .then(() => {
+            alert("Data berhasil dihapus!");
+            loadData();
+          });
+      }
+    }
+
+    function cancelEdit() {
+      resetForm();
+    }
+
+    function resetForm() {
+      document.getElementById('nama').value = '';
+      document.getElementById('nomor').value = '';
+      document.getElementById('warna').value = '#ff0000';
+      document.getElementById('submitBtn').innerText = 'Upload';
+      document.getElementById('cancelBtn').style.display = 'none';
+      editId = null;
+    }
+
+    window.onload = loadData;
+  </script>
+</body>
+</html>
