@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload Gambar ke GitHub</title>
+</head>
+<body>
+  <h1>Upload Gambar ke GitHub</h1>
+  <input type="file" id="fileInput" accept="image/*" />
+  <button onclick="uploadToGitHub()">Upload</button>
+  <p id="status"></p>
+
+  <script>
+  //Di github: Settings > Developer settings > Personal access tokens > Fine-grained Tokens > Generate new token > Pilih All repositories/Only select repositories > Repositori permissions(Content = Read and write, metadata = Read-only) > generate token > salin token kemudian tempel di GITHUB_TOKEN
+    const GITHUB_TOKEN = '';
+    const REPO = 'username/repo'; // Ganti dengan user/repo tujuan
+    const BRANCH = 'main'; // atau 'master'
+
+    async function uploadToGitHub() {
+      const fileInput = document.getElementById('fileInput');
+      const status = document.getElementById('status');
+
+      if (!fileInput.files.length) {
+        status.innerText = 'Pilih file terlebih dahulu.';
+        return;
+      }
+      
+      status.innerHTML = 'Uploading...';
+      
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onloadend = async function () {
+        const base64Content = reader.result.split(',')[1];
+        const filename = Date.now() + '-' + file.name;
+
+        const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${filename}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${GITHUB_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: `Upload ${file.name}`,
+            content: base64Content,
+            branch: BRANCH
+          })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          status.innerHTML = `✅ Upload berhasil! <br><a href="${data.content.html_url}" target="_blank">Lihat di GitHub</a>`;
+        } else {
+          console.error(data);
+          status.innerHTML = '❌ Gagal upload. Cek console untuk detail.';
+        }
+      };
+
+      reader.readAsDataURL(file);
+    }
+  </script>
+</body>
+</html>
