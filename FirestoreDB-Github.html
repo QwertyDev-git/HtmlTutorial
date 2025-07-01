@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Upload & Edit Data Firestore</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .form-group { margin-bottom: 10px; }
+    .card { 
+      border: 1px solid #ccc; 
+      border-radius: 8px; 
+      padding: 10px; 
+      margin: 10px 0; 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between;
+    }
+    .card img {
+      width: 100%;
+      height: auto;
+    }
+    button {
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Upload/Edit Data</h2>
+  <div>
+    <div class="form-group">
+      <label>Nama:</label><br/>
+      <input type="text" id="nama" required>
+    </div>
+    <div class="form-group">
+      <label>Nomor (ID):</label><br/>
+      <input type="text" id="nomor" required>
+      <button onclick="generateRandomId()">Generate</button>
+    </div>
+    <div class="form-group">
+      <label>Ikon:</label><br/>
+      <input type="file" id="fileInput" accept="image/*" />
+    </div>
+    <button onclick="uploadData()" id="submitBtn">Upload</button>
+    <button onclick="cancelEdit()" id="cancelBtn" style="display:none;">Batal Edit</button>
+  </div>
+  <p id="status"></p>
+  <h2>Data Tersimpan</h2>
+  <div id="data-list"></div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <script>
+  //di Firebase: Project Settings > Your apps > pilih ikon gambar </> > (Masukkan nama) > Register > salin firebaseConfig dan tempel
+    const firebaseConfig = {
+      apiKey: "",
+      authDomain: "",
+      projectId: "",
+      storageBucket: "",
+      messagingSenderId: "",
+      appId: ""
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    //Di github: Settings > Developer settings > Personal access tokens > Fine-grained Tokens > Generate new token > Pilih All repositories/Only select repositories > Repositori permissions(Content = Read and write, metadata = Read-only) > generate token > salin token kemudian tempel di GITHUB_TOKEN
+    const GITHUB_TOKEN = '';
+    const REPO = 'Username/Repo';
+    const BRANCH = 'main'; // atau master
+    
+    let editId = null;
+    
+    function generateRandomId() {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let result = '';
+      for (let i = 0; i < 12; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      document.getElementById('nomor').value = result;
+    }
+    
+    async function uploadData() {
+      const nama = document.getElementById('nama').value;
+      const nomor = document.getElementById('nomor').value;
+      const tanggal = Date.now();
+      const submitBtn = document.getElementById('submitBtn');
+    
+      submitBtn.innerHTML = 'Uploading...';
+      if (!nama || !nomor) {
+        alert("Nama dan Nomor harus diisi!");
+        submitBtn.innerHTML = 'Upload';
+        return;
+      }
+    
+      const fileInput = document.getElementById('fileInput');
+      const status = document.getElementById('status');
+      const file = fileInput.files[0];
+    
+      if (!file) {
+        alert("Silakan pilih file gambar!");
+        submitBtn.innerHTML = 'Upload';
+        return;
+      }
+      
+      status.innerHTML = 'Uploading...';
+      const reader = new FileReader();
+      reader.onloadend = async function () {
+        const base64Content = reader.result.split(',')[1];
+        const filename = Date.now() + '-' + file.name;
+    
+        try {
+          const res = await fetch(`https://api.github.com/repos/${REPO}/contents/${filename}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `token ${GITHUB_TOKEN}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              message: `Upload ${file.name}`,
+              content: base64Content,
+              branch: BRANCH
+            })
+          });
+    
+          const dataGithub = await res.json();
+    
+          if (!res.ok) {
+            console.error(dataGithub);
+            status.innerHTML = '❌ Gagal upload. Cek console untuk detail.';
+            submitBtn.innerHTML = 'Upload';
+            return;
+          }
+    
+          status.innerHTML = `✅ Upload berhasil! <br><a href="${dataGithub.content.html_url}" target="_blank">Lihat di GitHub</a>`;
+    
+          const data = { nama, nomor, tanggal, namaFile: filename };
+    
+          if (editId) {
+            await db.collection("data").doc(editId).update(data);
+            alert("Data berhasil diperbarui!");
+          } else {
+            await db.collection("data").add(data);
+            alert("Data berhasil ditambahkan!");
+          }
+    
+          resetForm();
+          loadData();
+    
+        } catch (error) {
+          console.error(error);
+          alert("Terjadi kesalahan saat upload!");
+        } finally {
+          submitBtn.innerHTML = editId ? 'Update' : 'Upload';
+        }
+      };
+    
+      reader.readAsDataURL(file);
+    }
+    
+    function loadData() {
+      const container = document.getElementById('data-list');
+      container.innerHTML = '';
+      
+      db.collection("data").orderBy("tanggal", "desc").get()
+        .then((querySnapshot) => {
+          querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            const card = document.createElement('div');
+            const imgUrl = `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${data.namaFile}`;
+            card.className = 'card';
+            card.innerHTML = `
+              <div>
+              <img src="${imgUrl}"></img>
+                <strong>${data.nama}</strong><br/>
+                Nomor: ${data.nomor}<br/>
+                Tanggal: ${new Date(data.tanggal).toLocaleString()}
+              </div>
+              <div style="display:flex; align-items:center;">
+                <div>
+                  <button onclick="editData('${doc.id}', '${data.nama}', '${data.nomor}')">Edit</button>
+                  <button onclick="deleteData('${doc.id}')">Hapus</button>
+                </div>
+              </div>
+            `;
+            container.appendChild(card);
+          });
+        });
+    }
+    
+    function editData(id, nama, nomor) {
+      document.getElementById('nama').value = nama;
+      document.getElementById('nomor').value = nomor;
+      editId = id;
+      document.getElementById('submitBtn').innerText = 'Update';
+      document.getElementById('cancelBtn').style.display = 'inline-block';
+    }
+    
+    function deleteData(id) {
+      if (confirm("Yakin ingin menghapus data ini?")) {
+        db.collection("data").doc(id).delete()
+          .then(() => {
+            alert("Data berhasil dihapus!");
+            loadData();
+          });
+      }
+    }
+    
+    function cancelEdit() {
+      resetForm();
+    }
+    
+    function resetForm() {
+      document.getElementById('nama').value = '';
+      document.getElementById('nomor').value = '';
+      document.getElementById('submitBtn').innerText = 'Upload';
+      document.getElementById('cancelBtn').style.display = 'none';
+      editId = null;
+    }
+    
+    window.onload = loadData;
+  </script>
+</body>
+  </html>
