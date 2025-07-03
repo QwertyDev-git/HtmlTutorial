@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Platformer Game</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    canvas {
+      display: block;
+      background: #87ceeb;
+      width: 100vw;
+      height: 100vh;
+    }
+    
+    .controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      z-index: 10;
+    }
+    
+    .btn {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      font-size: 24px;
+      text-align: center;
+      line-height: 60px;
+      user-select: none;
+      touch-action: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+  <div class="controls">
+    <div class="btn" id="leftBtn">⯇</div>
+    <div class="btn" id="rightBtn">⯈</div>
+    <div class="btn" id="jumpBtn">⯅</div>
+  </div>
+  
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set, remove , onDisconnect, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    //di Firebase: Project Settings > Your apps > pilih ikon gambar </> > (Masukkan nama) > Register > salin firebaseConfig dan tempel
+    const firebaseConfig = {
+      apiKey: "",
+      authDomain: "",
+      databaseURL: "",
+      projectId: "",
+      storageBucket: "",
+      messagingSenderId: "",
+      appId: "",
+      measurementId: ""
+    };
+    
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    
+    const playerId = "player_" + Math.floor(Math.random() * 999999);
+    const playerRef = ref(db, `world/players/${playerId}`);
+    onDisconnect(playerRef).remove();
+    let otherPlayers = {};
+    
+    // Handle full screen canvas
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    
+    let keys = {};
+    
+    const player = {
+      x: 50,
+      y: 0,
+      width: 40,
+      height: 40,
+      vx: 0,
+      vy: 0,
+      speed: 4,
+      jumpForce: 10,
+      grounded: false
+    };
+    
+    const gravity = 0.5;
+    const platforms = [
+      { x: 0, y: 400, width: 2000, height: 40 },
+      { x: 300, y: 350, width: 120, height: 10 },
+      { x: 600, y: 300, width: 100, height: 10 },
+      { x: 900, y: 250, width: 100, height: 10 }
+    ];
+    
+    const camera = { x: 0, y: 0 };
+    
+    function update() {
+      player.vx = 0;
+      if (keys["ArrowRight"] || keys["right"]) player.vx = player.speed;
+      if (keys["ArrowLeft"] || keys["left"]) player.vx = -player.speed;
+    
+      player.vy += gravity;
+      player.grounded = false;
+    
+      player.x += player.vx;
+      player.y += player.vy;
+    
+      // Collision detection
+      platforms.forEach(p => {
+        if (
+          player.x < p.x + p.width &&
+          player.x + player.width > p.x &&
+          player.y < p.y + p.height &&
+          player.y + player.height > p.y
+        ) {
+          if (player.vy > 0) {
+            player.y = p.y - player.height;
+            player.vy = 0;
+            player.grounded = true;
+          }
+        }
+      });
+    
+      // Update camera
+      camera.x = player.x - canvas.width / 2 + player.width / 2;
+      if (camera.x < 0) camera.x = 0;
+      set(playerRef, {
+        x: player.x,
+        y: player.y
+      });
+    }
+    
+    const allPlayersRef = ref(db, "world/players");
+
+    onValue(allPlayersRef, snapshot => {
+      const players = snapshot.val() || {};
+      otherPlayers = {};
+      for (let id in players) {
+        if (id !== playerId) {
+          otherPlayers[id] = players[id];
+        }
+      }
+    });
+    
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+      ctx.save();
+      ctx.translate(-camera.x, -camera.y);
+    
+      ctx.fillStyle = "#654321";
+      platforms.forEach(p => {
+        ctx.fillRect(p.x, p.y, p.width, p.height);
+      });
+    
+      ctx.fillStyle = "red";
+      ctx.fillRect(player.x, player.y, player.width, player.height);
+      
+      for (let id in otherPlayers) {
+        const p = otherPlayers[id];
+        ctx.fillStyle = "red";
+        ctx.fillRect(p.x, p.y, player.width, player.height);
+      }
+      
+      ctx.restore();
+    }
+    
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+    
+    loop();
+    
+    // Keyboard controls
+    window.addEventListener("keydown", e => keys[e.key] = true);
+    window.addEventListener("keyup", e => keys[e.key] = false);
+    
+    // Mobile touch buttons
+    document.getElementById("leftBtn").addEventListener("touchstart", () => keys.left = true);
+    document.getElementById("leftBtn").addEventListener("touchend", () => keys.left = false);
+    document.getElementById("rightBtn").addEventListener("touchstart", () => keys.right = true);
+    document.getElementById("rightBtn").addEventListener("touchend", () => keys.right = false);
+    document.getElementById("jumpBtn").addEventListener("touchstart", () => {
+      if (player.grounded) {
+        player.vy = -player.jumpForce;
+        player.grounded = false;
+      }
+    });
+  </script>
+  
+</body>
+</html>
